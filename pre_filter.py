@@ -25,7 +25,29 @@ DESCARTE_TITULO = [
     "maintenance", "diseño grafico", "ehs", "development analyst",
     "desarrollo docente", "docente", "planeamiento financiero",
     "gasto industrial", "seguros sr",
-]
+    # Finanzas / contabilidad / tesorería
+    "contable", "nómina", "nomina", "treasury", "cash administration",
+    "tributari", "tesorería", "tesoreria", "facturación", "facturacion",
+
+    # Supply / logística
+    "logística", "logistica", "compras", "flota", "supply chain",
+    "planner ruta", "producción", "produccion", "demanda operativ",
+
+    # RRHH / legal / admin
+    "asistente legal", "capacitación", "capacitacion",
+    "administrativo", "administrador",
+
+    # Soporte TI
+    "power builder", "soporte operativo", "soporte comercial", "infraestructura",
+
+    # Créditos operativos
+    "créditos", "creditos", "cobranza", "cartera mora", "riesgo operativo",
+
+    # Seniority no aplica
+    "assistant", "intern", "practicante", "trainee", "manager",
+    "director", "head of", "gerente", "jefe",
+        
+    ]
 
 # Empresas internacionales donde junior puede ser middle
 EMPRESAS_INTERNACIONALES = [
@@ -60,9 +82,17 @@ def filtrar_bumeran_por_fecha(df, dias=3):
     df_bumeran = df[mask_bumeran].copy()
     df_otros = df[~mask_bumeran].copy()
     
-    df_bumeran["dias_publicado"] = df_bumeran["description"].apply(extraer_dias_bumeran)
+    def extraer_dias(texto):
+        if pd.isna(texto):
+            return None
+        match = re.search(r'hace (?:más de )?(\d+) d[íi]a', str(texto))
+        if match:
+            return int(match.group(1))
+        return None
     
-    # Conservar si tiene menos de X días O si no se pudo extraer la fecha
+    # Usar fecha_texto en vez de description
+    df_bumeran["dias_publicado"] = df_bumeran["fecha_texto"].apply(extraer_dias)
+    
     mask_reciente = (df_bumeran["dias_publicado"] <= dias) | (df_bumeran["dias_publicado"].isna())
     df_bumeran_filtrado = df_bumeran[mask_reciente].copy()
     
@@ -86,7 +116,7 @@ def filtrar_por_fecha(df, dias=3):
     
     return df_filtrado
 
-def pre_filter(csv_path="results/jobs_raw.csv"):
+def pre_filter(csv_path="results/metadata_raw.csv"):
     jobs = pd.read_csv(csv_path)
     total_original = len(jobs)
     
@@ -97,32 +127,33 @@ def pre_filter(csv_path="results/jobs_raw.csv"):
     
     mask_descarte = jobs["title"].apply(tiene_descarte)
     jobs_filtrados = jobs[~mask_descarte].copy()
-    
     print(f"Después de filtro por título: {len(jobs_filtrados)} ({total_original - len(jobs_filtrados)} descartados)")
     
     # Filtro 2 — junior en empresas peruanas
     def es_junior_peruano(row):
         titulo = str(row["title"]).lower()
         empresa = str(row["company"]).lower()
-        
         es_junior = any(j in titulo for j in ["junior", " jr", "jr.", "jr "])
         es_internacional = any(e in empresa for e in EMPRESAS_INTERNACIONALES)
-        
         return es_junior and not es_internacional
     
     mask_junior = jobs_filtrados.apply(es_junior_peruano, axis=1)
     jobs_filtrados = jobs_filtrados[~mask_junior].copy()
-    
     print(f"Después de filtro junior peruano: {len(jobs_filtrados)} ({mask_junior.sum()} descartados)")
-    
+
+    # Filtro 3 — deduplicar por título + empresa
+    antes = len(jobs_filtrados)
+    jobs_filtrados = jobs_filtrados.drop_duplicates(subset=["title", "company"])
+    print(f"Después de deduplicar título+empresa: {len(jobs_filtrados)} ({antes - len(jobs_filtrados)} descartados)")
+
+    # Filtro 4 — fecha
     jobs_filtrados = jobs_filtrados.reset_index(drop=True)
-    jobs_filtrados = filtrar_por_fecha(jobs_filtrados, dias=3) 
+    jobs_filtrados = filtrar_por_fecha(jobs_filtrados, dias=3)
     jobs_filtrados = filtrar_bumeran_por_fecha(jobs_filtrados, dias=3)
-    jobs_filtrados.to_csv("results/jobs_filtered.csv", index=False)
+    
+    jobs_filtrados.to_csv("results/metadata_filtered.csv", index=False)
     
     print(f"\nTotal final: {len(jobs_filtrados)} de {total_original} ofertas")
-    print("\nTítulos que pasaron el filtro:")
-    print(jobs_filtrados[["title", "company", "site"]].to_string())
     print("\nOfertas por fuente después del filtro:")
     print(jobs_filtrados["site"].value_counts())
     
