@@ -32,7 +32,16 @@ Señales de que el rol SÍ influye en decisiones (continuar evaluando):
 - "Recomendar acciones concretas"
 - "Participar en definición de estrategia"
 
-PASO 4 — CALIBRACIÓN FINAL:
+PASO 4 - INDICADORES DE ROL JUNIOR AUNQUE NO LO DIGA EXPLÍCITAMENTE:
+
+Si se cumplen 2 o más de estas condiciones → restar 2 puntos:
+- Experiencia mínima requerida de 1 año o menos
+- SQL básico o Excel como único requisito técnico obligatorio sin SQL avanzado ni Python requeridos
+- Herramientas core del rol son de analítica digital como Google Analytics, Adobe Analytics, Amplitude, Mixpanel sin mención de SQL avanzado o Python como requisito
+- "Soporte a" como parte de la misión principal del rol
+
+
+PASO 5 — CALIBRACIÓN FINAL:
 No sumes keywords mecánicamente. Preguntate:
 ¿Este rol le permite al analista influir en decisiones de negocio reales o solo produce insumos para que otros decidan?
 - Influye directamente en decisiones → 7-10
@@ -40,7 +49,20 @@ No sumes keywords mecánicamente. Preguntate:
 - Solo ejecuta o mantiene procesos → 3-4
 
 Ajustá hacia arriba si menciona: SQL, Python, Power BI, funnel, cohortes, segmentación, churn, forecasting, revenue, pricing, growth, stakeholders, A/B testing, fintech, retail, startup.
-Ajustá hacia abajo si: presencial (-1), junior explícito en empresa peruana (-1), senior con más de 7 años requeridos (-1), inglés avanzado obligatorio (-2), herramientas exclusivas fuera del stack como Tableau, Qlik, MongoDB sin mención de Power BI o SQL como alternativa (-1 por cada una).
+
+Ajustá hacia abajo si:
+- Presencial (-1)
+- Junior explícito en empresa peruana (-1)
+- Senior con más de 7 años requeridos (-1)
+- Inglés avanzado obligatorio (-2)
+- Herramientas exclusivas fuera del stack como Tableau, Qlik, MongoDB sin mención de Power BI o SQL como alternativa (-1 por cada una)
+
+INDICADORES DE ROL JUNIOR AUNQUE NO LO DIGA EXPLÍCITAMENTE:
+Si se cumplen 2 o más de estas condiciones → restar 2 puntos:
+- Experiencia mínima requerida de 1 año o menos
+- SQL básico o Excel como único requisito técnico obligatorio sin SQL avanzado ni Python requeridos
+- Herramientas core del rol son de analítica digital como Google Analytics, Adobe Analytics, Amplitude, Mixpanel sin mención de SQL avanzado o Python como requisito
+- "Soporte a" como parte de la misión principal del rol
 
 ESCALA DE REFERENCIA:
 9-10: Fit casi perfecto. Postular inmediatamente.
