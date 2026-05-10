@@ -36,20 +36,23 @@ def scrape_indeed_metadata():
 
     for term in SEARCHES:
         print(f"  [Indeed] {term}...")
-        jobs = scrape_jobs(
-            site_name=["indeed"],
-            search_term=term,
-            location="Lima, Peru",
-            results_wanted=20,
-            hours_old=72,
-            country_indeed="Peru"
-        )
-        # Solo metadata — sin descripción
-        cols = ["title", "company", "location", "date_posted",
-                "job_type", "is_remote", "job_level", "job_url"]
-        cols_existentes = [c for c in cols if c in jobs.columns]
-        jobs = jobs[cols_existentes].copy()
-        all_jobs.append(jobs)
+        try:
+            jobs = scrape_jobs(
+                site_name=["indeed"],
+                search_term=term,
+                location="Lima, Peru",
+                results_wanted=20,
+                hours_old=72,
+                country_indeed="Peru"
+            )
+            cols = ["title", "company", "location", "date_posted",
+                    "job_type", "is_remote", "job_level", "job_url"]
+            cols_existentes = [c for c in cols if c in jobs.columns]
+            jobs = jobs[cols_existentes].copy()
+            all_jobs.append(jobs)
+        except Exception as e:
+            print(f"  [Indeed] Error en '{term}': {e} — saltando")
+            continue
 
     combined = pd.concat(all_jobs, ignore_index=True)
     combined = combined.drop_duplicates(subset=["job_url"])
@@ -76,7 +79,7 @@ def scrape_linkedin_metadata():
             site_name=["linkedin"],
             search_term=term,
             location="Lima, Peru",
-            results_wanted=15,
+            results_wanted=25,
             hours_old=72,
             linkedin_fetch_description=False,  # ← solo metadata
             linkedin_cookie=cookie

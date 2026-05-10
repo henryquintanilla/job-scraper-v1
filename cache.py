@@ -17,10 +17,14 @@ def init_db():
             job_url TEXT PRIMARY KEY,
             title TEXT,
             company TEXT,
+            location TEXT,
             site TEXT,
             score INTEGER,
             reason TEXT,
+            categoria TEXT,
+            dimensiones TEXT,
             date_scored TEXT
+
         )
     """)
     
@@ -64,9 +68,12 @@ def save_scored_jobs(df_scored):
             "job_url": row["job_url"],
             "title": row["title"],
             "company": row.get("company", None),
+            "location": row.get("location", None),
             "site": row.get("site", None),
             "score": row.get("score", None),
             "reason": row.get("reason", None),
+            "categoria": row.get("categoria", None),
+            "dimensiones": row.get("dimensiones", None),
             "date_scored": datetime.now().strftime("%Y-%m-%d %H:%M")
         })
     
