@@ -53,6 +53,7 @@ DESCRIPCIÓN (primeros 800 chars):
             message = client.messages.create(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=50,
+                temperature=0,
                 messages=[{"role": "user", "content": prompt}]
             )
             raw = message.content[0].text.strip()
@@ -93,6 +94,7 @@ Recordá: devolvé ÚNICAMENTE el JSON, sin texto adicional ni markdown."""
         message = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=500,
+            temperature=0,
             messages=[{"role": "user", "content": prompt}]
         )
         raw = message.content[0].text.strip()
