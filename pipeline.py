@@ -1,5 +1,5 @@
 import pandas as pd
-from scorer import score_job, get_score_simple, get_reason_simple
+from scorer import score_job, get_score_simple, get_reason_simple, pre_score
 from cache import filter_new_jobs, save_scored_jobs, get_history
 import time
 import json
@@ -23,15 +23,32 @@ else:
     reasons = []
     categorias = []
     dimensiones_raw = []
+    descartes_rapidos = 0
 
     for contador, (i, row) in enumerate(jobs_new.iterrows(), start=1):
         print(f"[{contador}/{len(jobs_new)}] {row['title']} @ {row['company']}")
-        resultado = score_job(row["description"], use_ollama=USE_OLLAMA)
 
+        # Fase 1 — pre-score rápido
+        pasa, fit, adj = pre_score(row["description"], use_ollama=USE_OLLAMA)
+
+        if not pasa:
+            print(f"  → Descarte rápido (fit_negocio={fit}, adyacencia={adj})")
+            scores.append(2)
+            reasons.append(f"Descarte fase 1: fit_negocio={fit}, adyacencia={adj}.")
+            categorias.append("DESCARTAR")
+            dimensiones_raw.append(None)
+            descartes_rapidos += 1
+            continue
+
+        # Fase 2 — scoring completo
+        resultado = score_job(row["description"], use_ollama=USE_OLLAMA)
         scores.append(get_score_simple(resultado))
         reasons.append(get_reason_simple(resultado))
         categorias.append(resultado.get("categoria", ""))
         dimensiones_raw.append(json.dumps(resultado, ensure_ascii=False))
+
+    print(f"\nDescartes rápidos (fase 1): {descartes_rapidos}")
+    print(f"Scorings completos (fase 2): {len(jobs_new) - descartes_rapidos}")
 
     jobs_new["score"] = scores
     jobs_new["reason"] = reasons

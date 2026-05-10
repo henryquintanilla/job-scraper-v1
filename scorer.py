@@ -19,6 +19,57 @@ PESOS = {
 
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
+def pre_score(description: str, use_ollama: bool = False) -> tuple[bool, int, int]:
+    """
+    Fase 1 — evaluación rápida y barata.
+    Retorna (pasa_filtro, fit_negocio, adyacencia)
+    """
+    prompt = f"""Evaluá estas dos dimensiones del 1 al 5 para un analista semi-senior de analytics comercial en banca (Interbank). Background: segmentación, churn, funnel, dashboards comerciales.
+
+DIMENSIÓN 1 — FIT DE NEGOCIO:
+¿El output es influir en decisiones o mantener procesos?
+5=propone estrategia/recomienda a gerencia, 3=mix análisis e insumos, 1=reportes fijos/operativo puro
+Descarte inmediato si es RRHH, M&A, contabilidad, auditoría, cobranzas.
+
+DIMENSIÓN 2 — ADYACENCIA AL HISTORIAL:
+¿Qué tan natural es el movimiento desde analytics comercial en banca?
+5=product/growth/pricing/revenue analytics, 3=FP&A ligero/strategy/CX analytics, 1=contabilidad/data engineering/roles ajenos
+
+Devolvé ÚNICAMENTE este JSON sin markdown:
+{{"fit_negocio": N, "adyacencia": N}}
+
+DESCRIPCIÓN (primeros 800 chars):
+{description[:800]}"""
+
+    try:
+        if use_ollama:
+            import requests as req
+            response = req.post(
+                "http://localhost:11434/api/generate",
+                json={"model": "llama3.1:8b", "prompt": prompt, "stream": False}
+            )
+            raw = response.json()["response"].strip()
+        else:
+            message = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=50,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            raw = message.content[0].text.strip()
+
+        clean = re.sub(r"```json\s*|\s*```", "", raw).strip()
+        result = json.loads(clean)
+        fit = result.get("fit_negocio", 3)
+        adj = result.get("adyacencia", 3)
+
+        # Pasa si al menos una es > 2
+        pasa = not (fit <= 2 and adj <= 2)
+        return pasa, fit, adj
+
+    except Exception as e:
+        # En caso de error, pasar al scoring completo por seguridad
+        return True, 3, 3
+
 def score_job(description: str, use_ollama: bool = False) -> dict:
     prompt = f"""{SCORING_CRITERIA}
 
