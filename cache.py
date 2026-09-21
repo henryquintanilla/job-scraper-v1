@@ -23,6 +23,7 @@ def init_db():
             reason TEXT,
             categoria TEXT,
             dimensiones TEXT,
+            cv_fit TEXT,
             date_scored TEXT
 
         )
@@ -73,6 +74,7 @@ def save_scored_jobs(df_scored):
             "score": row.get("score", None),
             "reason": row.get("reason", None),
             "categoria": row.get("categoria", None),
+            "cv_fit": row.get("cv_fit", None),
             "dimensiones": row.get("dimensiones", None),
             "date_scored": datetime.now().strftime("%Y-%m-%d %H:%M")
         })

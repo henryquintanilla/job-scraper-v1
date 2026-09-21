@@ -8,14 +8,40 @@ from config import SCORING_CRITERIA
 load_dotenv()
 
 PESOS = {
-    "fit_negocio": 0.25,
-    "fit_tecnico": 0.20,
-    "proximidad_negocio": 0.20,
-    "empresa": 0.15,
-    "modalidad": 0.10,
-    "sector": 0.05,
-    "seniority": 0.05,
+    "fit_negocio":        0.22,
+    "fit_tecnico":        0.18,
+    "proximidad_negocio": 0.18,
+    "adyacencia_historial": 0.17,
+    "empresa":            0.10,
+    "modalidad":          0.07,
+    "sector":             0.05,
+    "seniority":          0.03,
 }
+
+def calcular_score(resultado: dict) -> tuple[int, str]:
+    """
+    Calcula score_final y categoria en Python — Claude solo evalua dimensiones.
+    Retorna (score_final, categoria)
+    """
+    score_base = sum(
+        resultado[dim]["score"] * peso
+        for dim, peso in PESOS.items()
+        if dim in resultado and isinstance(resultado[dim], dict)
+    ) * 2
+
+    penalizaciones = resultado.get("penalizaciones", 0)
+    score_final = max(1, min(10, round(score_base) - penalizaciones))
+
+    if score_final >= 9:
+        categoria = "PRIORIDAD ALTA"
+    elif score_final >= 7:
+        categoria = "APLICAR"
+    elif score_final >= 5:
+        categoria = "SOLO SI HAY POCO PIPELINE"
+    else:
+        categoria = "DESCARTAR"
+
+    return score_final, categoria
 
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
@@ -111,9 +137,12 @@ Recordá: devolvé ÚNICAMENTE el JSON, sin texto adicional ni markdown."""
                         "modalidad", "seniority"]
 
         if all(d in result for d in dimensiones):
+            # Calcular score y categoria en Python
+            score_final, categoria = calcular_score(result)
+            result["score_final"] = score_final
+            result["categoria"] = categoria
             return result
         else:
-            # Formato incompleto — devolver error estructurado
             return {
                 "score": 0,
                 "reason": f"JSON incompleto: {list(result.keys())}",
@@ -139,6 +168,77 @@ def get_reason_simple(result: dict) -> str:
     """Extrae la razón del resultado"""
     return result.get("reason", "")
 
+
+
+# ── CV FIT SCORER ─────────────────────────────────────────
+
+CV_RESUMENES = {
+    "A": "Analytics & Strategy Analyst. Enfasis en diagnostico de problemas de negocio, SQL y Power BI, recomendaciones accionables. Logros en adopcion digital, reduccion de costos y churn. Para: Data Analyst, BI Analyst, Business Analyst, Commercial Analytics.",
+    "B": "Commercial Analytics & Strategy Analyst. Enfasis en impacto comercial: adopcion digital, retencion de alto valor, optimizacion de rentabilidad, business cases. Logro destacado: +40% tipo de cambio (ciclo completo estrategia-ejecucion-resultado). Para: Revenue Analyst, Pricing Analyst, Growth Analyst, Commercial Strategy, Planning Analyst.",
+    "C": "Business & Operations Analyst. Enfasis en operaciones con datos: gestion de proyectos cross-funcionales, forecasting, coordinacion tecnica, reporting gerencial. Destaca proyecto Banca Empresa. Para: Operations Analyst, Project Analyst, Planning Analyst, Process Improvement.",
+    "D": "Business Analyst Senior. Enfasis en transformacion con IA: identificacion de puntos de dolor, coordinacion negocio-tecnologia, IA generativa. Incluye simulador de forecast. Para: Business Analyst en producto, transformacion digital, PMO analitico, strategy analyst en empresas tech.",
+}
+
+CV_FIT_PROMPT = """Eres un asesor de carrera experto. Dado un JD y 4 perfiles de CV, determina cual enviar.
+
+CVs disponibles:
+CV A: {cv_a}
+CV B: {cv_b}
+CV C: {cv_c}
+CV D: {cv_d}
+
+JD:
+Titulo: {titulo}
+Empresa: {empresa}
+Descripcion: {descripcion}
+
+Devuelve UNICAMENTE este JSON sin markdown:
+{{
+  "cv_recomendado": "A",
+  "confianza": "alta",
+  "gaps": ["gap 1 maximo 8 palabras", "gap 2 maximo 8 palabras"],
+  "ajuste_sugerido": "instruccion concreta maximo 15 palabras o null si no hay ajuste"
+}}
+
+confianza debe ser exactamente: "alta", "media" o "baja"
+cv_recomendado debe ser exactamente: "A", "B", "C" o "D"
+gaps: maximo 3 items. Lista vacia si no hay gaps relevantes.
+ajuste_sugerido: null si el CV es buen fit sin cambios."""
+
+
+def fit_cv(description: str, title: str, company: str) -> dict:
+    """
+    Corre solo para ofertas con score >= 7.
+    Devuelve dict con cv_recomendado, confianza, gaps, ajuste_sugerido.
+    """
+    prompt = CV_FIT_PROMPT.format(
+        cv_a=CV_RESUMENES["A"],
+        cv_b=CV_RESUMENES["B"],
+        cv_c=CV_RESUMENES["C"],
+        cv_d=CV_RESUMENES["D"],
+        titulo=title,
+        empresa=company,
+        descripcion=description[:1500],
+    )
+
+    try:
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw = message.content[0].text.strip()
+        clean = re.sub(r"```json\s*|\s*```", "", raw).strip()
+        result = json.loads(clean)
+
+        if "cv_recomendado" not in result or "confianza" not in result:
+            return {"cv_recomendado": None, "confianza": None, "gaps": [], "ajuste_sugerido": None, "error": True}
+
+        return result
+
+    except Exception:
+        return {"cv_recomendado": None, "confianza": None, "gaps": [], "ajuste_sugerido": None, "error": True}
 
 if __name__ == "__main__":
     descripcion_test = """

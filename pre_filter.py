@@ -66,48 +66,68 @@ def is_junior_internacional(row):
     return es_junior and es_internacional
 
 
-def extraer_dias_bumeran(description):
-    if pd.isna(description):
-        return None
-    
-    # Busca patrones como "hace 3 días", "hace 1 día", "hace más de 15 días"
-    match = re.search(r'hace (?:más de )?(\d+) d[íi]a', str(description))
-    if match:
-        return int(match.group(1))
-    return None
+def calcular_dias_publicado(row):
+    """
+    Devuelve días desde publicación como int, o None si no hay dato.
+    - LinkedIn/Indeed: usa 'date_posted' (formato ISO YYYY-MM-DD)
+    - Bumeran/Workday: usa 'fecha_texto' (ej: 'Publicado hace 3 días')
+    - Computrabajo: usa 'fecha_texto' (ej: 'Hace 2 días', 'Hace 1 hora' → 0 días)
+    - Sin dato: devuelve None (conservador — no descartamos)
+    """
+    site = str(row.get("site", "")).lower()
 
-def filtrar_bumeran_por_fecha(df, dias=3):
-    mask_bumeran = df["site"] == "bumeran"
-    
-    df_bumeran = df[mask_bumeran].copy()
-    df_otros = df[~mask_bumeran].copy()
-    
-    def extraer_dias(texto):
-        if pd.isna(texto):
+    if site in ("linkedin", "indeed"):
+        date_val = row.get("date_posted")
+        if pd.isna(date_val) or date_val == "":
             return None
-        match = re.search(r'hace (?:más de )?(\d+) d[íi]a', str(texto))
+        try:
+            fecha = pd.to_datetime(date_val).date()
+            return (datetime.now().date() - fecha).days
+        except Exception:
+            return None
+
+    if site in ("bumeran", "workday"):
+        texto = str(row.get("fecha_texto", ""))
+        match = re.search(r"hace (?:más de )?(\d+) d[íi]a", texto)
         if match:
             return int(match.group(1))
         return None
-    
-    # Usar fecha_texto en vez de description
-    df_bumeran["dias_publicado"] = df_bumeran["fecha_texto"].apply(extraer_dias)
-    
-    mask_reciente = (df_bumeran["dias_publicado"] <= dias) | (df_bumeran["dias_publicado"].isna())
-    df_bumeran_filtrado = df_bumeran[mask_reciente].copy()
-    
-    descartados = len(df_bumeran) - len(df_bumeran_filtrado)
-    print(f"Bumeran — filtro de fecha ({dias} días): {len(df_bumeran_filtrado)} de {len(df_bumeran)} ({descartados} descartados)")
-    
-    return pd.concat([df_otros, df_bumeran_filtrado], ignore_index=True)
+
+    if site == "computrabajo":
+        texto = str(row.get("fecha_texto", "")).lower()
+        match_dias = re.search(r"hace\s+(\d+)\s+d[íi]a", texto)
+        if match_dias:
+            return int(match_dias.group(1))
+        if "hora" in texto or "minuto" in texto:
+            return 0
+        return None
+
+    return None
+
+
+def es_ghost_job(row):
+    """Devuelve True si la oferta lleva más de 30 días publicada."""
+    dias = calcular_dias_publicado(row)
+    return dias is not None and dias > 30
+
+
+def filtrar_por_fecha_texto(df, dias=3):
+    """Filtra Bumeran y Computrabajo por fecha_texto (fuentes sin date_posted ISO)."""
+    mask = df["site"].isin(["bumeran", "computrabajo"])
+    df_texto = df[mask].copy()
+    df_otros = df[~mask].copy()
+    df_texto["dias_publicado"] = df_texto.apply(calcular_dias_publicado, axis=1)
+    mask_reciente = (df_texto["dias_publicado"] <= dias) | (df_texto["dias_publicado"].isna())
+    df_texto_filtrado = df_texto[mask_reciente].copy()
+    descartados = len(df_texto) - len(df_texto_filtrado)
+    print(f"Bumeran+Computrabajo — filtro de fecha ({dias} días): {len(df_texto_filtrado)} de {len(df_texto)} ({descartados} descartados)")
+    return pd.concat([df_otros, df_texto_filtrado], ignore_index=True)
 
 def filtrar_por_fecha(df, dias=3):
-    # Convertir date_posted a datetime
     df["date_posted"] = pd.to_datetime(df["date_posted"], errors="coerce")
     
     cutoff = datetime.now() - timedelta(days=dias)
     
-    # Mantener ofertas recientes O sin fecha (Bumeran)
     mask_reciente = (df["date_posted"] >= cutoff) | (df["date_posted"].isna())
     
     df_filtrado = df[mask_reciente].copy()
@@ -115,6 +135,48 @@ def filtrar_por_fecha(df, dias=3):
     print(f"Después de filtro de fecha ({dias} días): {len(df_filtrado)} ({descartados} descartados)")
     
     return df_filtrado
+
+
+def filtrar_getonboard_por_ubicacion(df):
+    """
+    Filtra ofertas de Get on Board por ubicación y modalidad.
+    Mantiene:
+      - País = Perú (cualquier modalidad)
+      - Modalidad = Remoto SIN restricción de residencia (politica_remota no menciona país)
+    Descarta:
+      - País != Perú + Híbrido
+      - País != Perú + Remoto sólo localmente
+      - País != Perú + Presencial
+    """
+    mask_gob = df["site"] == "getonboard"
+    df_gob = df[mask_gob].copy()
+    df_otros = df[~mask_gob].copy()
+
+    if df_gob.empty:
+        return df
+
+    def aplica(row):
+        pais = str(row.get("pais_code", "")).lower()
+        modalidad = str(row.get("modalidad", "")).lower()
+        politica = str(row.get("politica_remota", "")).lower()
+
+        # Perú → siempre mantener
+        if pais == "pe":
+            return True
+
+        # Remoto global → mantener (politica no menciona residencia en un país específico)
+        if "remoto" in modalidad and "resid" not in politica and "localmente" not in politica:
+            return True
+
+        return False
+
+    mask_aplica = df_gob.apply(aplica, axis=1)
+    df_gob_filtrado = df_gob[mask_aplica].copy()
+
+    descartados = len(df_gob) - len(df_gob_filtrado)
+    print(f"GetOnBoard — filtro ubicación/modalidad: {len(df_gob_filtrado)} de {len(df_gob)} ({descartados} descartados)")
+
+    return pd.concat([df_otros, df_gob_filtrado], ignore_index=True)
 
 def pre_filter(csv_path="results/metadata_raw.csv"):
     jobs = pd.read_csv(csv_path)
@@ -146,10 +208,20 @@ def pre_filter(csv_path="results/metadata_raw.csv"):
     jobs_filtrados = jobs_filtrados.drop_duplicates(subset=["title", "company"])
     print(f"Después de deduplicar título+empresa: {len(jobs_filtrados)} ({antes - len(jobs_filtrados)} descartados)")
 
-    # Filtro 4 — fecha
+    # Filtro 4 — fecha reciente (≤ 3 días)
     jobs_filtrados = jobs_filtrados.reset_index(drop=True)
     jobs_filtrados = filtrar_por_fecha(jobs_filtrados, dias=3)
-    jobs_filtrados = filtrar_bumeran_por_fecha(jobs_filtrados, dias=3)
+    jobs_filtrados = filtrar_por_fecha_texto(jobs_filtrados, dias=3)
+
+    # Filtro 5 — ghost jobs (> 30 días)
+    antes = len(jobs_filtrados)
+    mask_ghost = jobs_filtrados.apply(es_ghost_job, axis=1)
+    jobs_filtrados = jobs_filtrados[~mask_ghost].copy()
+    descartados_ghost = antes - len(jobs_filtrados)
+    print(f"Después de filtro ghost jobs (> 30 días): {len(jobs_filtrados)} ({descartados_ghost} descartados)")
+
+    # Filtro 6 — Get on Board: ubicación y modalidad
+    jobs_filtrados = filtrar_getonboard_por_ubicacion(jobs_filtrados)
     
     jobs_filtrados.to_csv("results/metadata_filtered.csv", index=False)
     

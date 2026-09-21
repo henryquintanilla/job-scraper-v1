@@ -1,5 +1,5 @@
 import pandas as pd
-from scorer import score_job, get_score_simple, get_reason_simple, pre_score
+from scorer import score_job, get_score_simple, get_reason_simple, pre_score, fit_cv
 from cache import filter_new_jobs, save_scored_jobs, get_history
 import time
 import json
@@ -23,6 +23,7 @@ else:
     reasons = []
     categorias = []
     dimensiones_raw = []
+    cv_fit_raw = []
     descartes_rapidos = 0
 
     for contador, (i, row) in enumerate(jobs_new.iterrows(), start=1):
@@ -37,6 +38,7 @@ else:
             reasons.append(f"Descarte fase 1: fit_negocio={fit}, adyacencia={adj}.")
             categorias.append("DESCARTAR")
             dimensiones_raw.append(None)
+            cv_fit_raw.append(None)
             descartes_rapidos += 1
             continue
 
@@ -47,6 +49,16 @@ else:
         categorias.append(resultado.get("categoria", ""))
         dimensiones_raw.append(json.dumps(resultado, ensure_ascii=False))
 
+        # Fase 3 — CV fit (solo para score >= 7)
+        score_actual = get_score_simple(resultado)
+        if score_actual >= 7:
+            cv_result = fit_cv(row["description"], row["title"], str(row.get("company", "")))
+            cv_fit_raw.append(json.dumps(cv_result, ensure_ascii=False))
+            cv_rec = cv_result.get("cv_recomendado", "?")
+            print(f"  → CV fit: CV {cv_rec} ({cv_result.get('confianza', '')})")
+        else:
+            cv_fit_raw.append(None)
+
     print(f"\nDescartes rápidos (fase 1): {descartes_rapidos}")
     print(f"Scorings completos (fase 2): {len(jobs_new) - descartes_rapidos}")
 
@@ -54,6 +66,7 @@ else:
     jobs_new["reason"] = reasons
     jobs_new["categoria"] = categorias
     jobs_new["dimensiones"] = dimensiones_raw
+    jobs_new["cv_fit"] = cv_fit_raw
 
     save_scored_jobs(jobs_new)
 

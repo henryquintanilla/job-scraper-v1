@@ -166,30 +166,6 @@ Score final mínimo: 1. Score final máximo: 10.
 
 ---
 
-CÁLCULO:
-score_base = (
-    fit_negocio          * 0.22 +
-    fit_tecnico          * 0.18 +
-    proximidad_negocio   * 0.18 +
-    adyacencia_historial * 0.17 +
-    empresa              * 0.10 +
-    modalidad            * 0.07 +
-    sector               * 0.05 +
-    seniority            * 0.03
-) * 2
-
-score_final = round(score_base) - penalizaciones
-
----
-
-CATEGORÍAS:
-9-10 → PRIORIDAD ALTA
-7-8  → APLICAR
-5-6  → SOLO SI HAY POCO PIPELINE
-1-4  → DESCARTAR
-
----
-
 OUTPUT — devolver ÚNICAMENTE este JSON sin texto adicional ni markdown:
 {
   "fit_negocio": {"score": 4, "note": "máximo 15 palabras"},
@@ -201,12 +177,6 @@ OUTPUT — devolver ÚNICAMENTE este JSON sin texto adicional ni markdown:
   "modalidad": {"score": 3, "note": "máximo 15 palabras"},
   "seniority": {"score": 5, "note": "máximo 15 palabras"},
   "penalizaciones": 0,
-  "score_final": 8,
-  "categoria": "APLICAR",
-  "reason": "máximo 30 palabras explicando el score final"
+  "reason": "máximo 30 palabras explicando el perfil del rol"
 }
-
-El score_final es un número entero del 1 al 10.
-La categoria debe ser exactamente una de:
-PRIORIDAD ALTA, APLICAR, SOLO SI HAY POCO PIPELINE, DESCARTAR
 """

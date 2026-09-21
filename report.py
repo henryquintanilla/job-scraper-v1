@@ -23,6 +23,60 @@ def get_label(score):
         return "Descarte"
 
 
+def get_cv_badge(cv_fit_raw):
+    if not cv_fit_raw or cv_fit_raw == "None" or cv_fit_raw == "nan":
+        return "", ""
+    try:
+        import json as _j
+        data = _j.loads(cv_fit_raw)
+        cv = data.get("cv_recomendado")
+        confianza = data.get("confianza", "")
+        gaps = data.get("gaps", [])
+        ajuste = data.get("ajuste_sugerido")
+        if data.get("error") or not cv:
+            return "", ""
+
+        colors = {
+            "alta":  ("#2d6a4f", "#d8f3dc"),
+            "media": ("#b5700a", "#fff3cd"),
+            "baja":  ("#c1121f", "#ffe8e8"),
+        }
+        bc, bg = colors.get(confianza, ("#555", "#eee"))
+
+        badge = (
+            '<span style="font-size:11px;font-weight:700;'
+            'background:' + bg + ';color:' + bc + ';'
+            'border:1px solid ' + bc + ';padding:2px 8px;'
+            'border-radius:10px;margin-left:4px">CV ' + cv + '</span>'
+        )
+
+        gaps_items = "".join(
+            '<li style="font-size:12px;color:#555;margin:2px 0">' + g + '</li>'
+            for g in gaps
+        )
+        gaps_html = (
+            '<p style="font-size:12px;color:#555;margin:6px 0 2px 0"><strong>Gaps:</strong></p>'
+            '<ul style="margin:0;padding-left:16px">' + gaps_items + '</ul>'
+        ) if gaps else ""
+
+        ajuste_html = (
+            '<p style="font-size:12px;color:#b5700a;margin:6px 0 0 0">'
+            '<strong>Ajuste sugerido:</strong> ' + str(ajuste) + '</p>'
+        ) if ajuste else ""
+
+        desglose = (
+            '<div style="margin-top:8px;padding:8px;background:#f8f9fa;'
+            'border-radius:6px;border-left:3px solid ' + bc + '">'
+            '<p style="font-size:12px;font-weight:700;color:' + bc + ';margin:0 0 4px 0">'
+            'CV ' + cv + ' — confianza ' + confianza + '</p>'
+            + gaps_html + ajuste_html + '</div>'
+        )
+
+        return badge, desglose
+    except Exception:
+        return "", ""
+
+
 def build_card(row):
     color_text, color_bg = get_color(row["score"])
     label = get_label(row["score"])
@@ -77,18 +131,24 @@ def build_card(row):
 
     categoria_html = f'<span style="font-size:11px; font-weight:700; color:{color_text}; margin-left:8px">{categoria}</span>' if categoria else ""
 
+    cv_fit_raw = row.get("cv_fit", None)
+    cv_fit_str = str(cv_fit_raw) if cv_fit_raw and str(cv_fit_raw) != "nan" else None
+    cv_badge_html, cv_desglose_html = get_cv_badge(cv_fit_str)
+
     return f"""
     <div class="card" style="border-left: 5px solid {color_text}; background: {color_bg}">
         <div class="card-header">
             <span class="score" style="background: {color_text}">{row["score"]}/10</span>
             <span class="label" style="color: {color_text}">{label}</span>
             {categoria_html}
+            {cv_badge_html}
             <span class="date-tag">{date_scored}</span>
         </div>
         <h3>{row["title"]}</h3>
         <p class="empresa">{empresa} · {ubicacion}</p>
         <p class="reason">{reason}</p>
         {dimensiones_html}
+        {cv_desglose_html}
         <a href="{row["job_url"]}" target="_blank">Ver oferta →</a>
     </div>
     """
